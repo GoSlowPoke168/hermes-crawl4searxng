@@ -3,14 +3,59 @@
 #
 # Idempotent: safe to re-run. Never overwrites an existing .env or an
 # existing SearXNG core-config/settings.yml — those hold secrets/customizations.
+#
+# Two install modes (pick one — see --help):
+#   --symlink   (default) Docker services live under ~/docker/{crawl4ai,searxng}.
+#               The plugin is symlinked into Hermes' plugins dir, pointing back
+#               at this repo — `git pull` here takes effect immediately.
+#   --bundled   No symlink. The plugin code AND the Docker configs are copied
+#               into <hermes-plugins-dir>/hermes-crawl4searxng/ — a single
+#               self-contained directory with nothing living outside it.
+#               Re-run install.sh (from this repo) after `git pull` to sync
+#               code changes into the bundled copy.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKER_HOME="${DOCKER_HOME:-$HOME/docker}"
 PLUGIN_NAME="hermes-crawl4searxng"
+MODE="symlink"
+
+usage() {
+  cat <<EOF
+Usage: $0 [--symlink|--bundled] [--help]
+
+  --symlink   (default) ~/docker/{crawl4ai,searxng} + symlinked plugin
+  --bundled   everything self-contained inside the plugin's own directory,
+              no symlink
+
+Env overrides: HERMES_HOME, DOCKER_HOME (symlink mode only)
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --symlink) MODE="symlink" ;;
+    --bundled|--standalone) MODE="bundled" ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "ERROR: unknown argument '$arg'" >&2; usage; exit 1 ;;
+  esac
+done
 
 log() { printf '==> %s\n' "$1"; }
 warn() { printf 'WARNING: %s\n' "$1" >&2; }
+
+# Both --symlink and --bundled compose files use the same fixed container
+# names, so if a container by that name already exists under a *different*
+# compose project directory, `docker compose up -d` here will silently
+# re-point (and, for crawl4ai, regenerate the secret for) that container —
+# not spin up an independent second stack. Warn loudly before that happens.
+warn_if_container_elsewhere() {
+  local container="$1" expected_dir="$2" existing_dir
+  existing_dir="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$container" 2>/dev/null || true)"
+  if [ -n "$existing_dir" ] && [ "$existing_dir" != "$expected_dir" ]; then
+    warn "Container '$container' is currently managed from $existing_dir, not $expected_dir."
+    warn "Continuing will re-point it here (mode switch) — its secrets/config at $expected_dir take over. The old location's files are left on disk but stop being used."
+  fi
+}
 
 require() {
   command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is required but not found in PATH." >&2; exit 1; }
@@ -22,6 +67,8 @@ if ! docker compose version >/dev/null 2>&1; then
   echo "ERROR: 'docker compose' (v2 plugin) is required." >&2
   exit 1
 fi
+
+log "Install mode: $MODE"
 
 # ---------------------------------------------------------------------------
 # 0. Locate the live Hermes install (don't assume ~/.hermes) — ask the
@@ -55,9 +102,36 @@ if [ -z "$HERMES_ENV" ] && [ -d "$HOME/.hermes" ]; then
   HERMES_PLUGINS_DIR="${HERMES_PLUGINS_DIR:-$HOME/.hermes/plugins}"
 fi
 
-if [ -z "$HERMES_ENV" ]; then
-  warn "Could not locate your Hermes install (no 'hermes' CLI on PATH, no ~/.hermes, and \$HERMES_HOME unset)."
+if [ -z "$HERMES_ENV" ] || [ -z "$HERMES_PLUGINS_DIR" ]; then
+  warn "Could not fully locate your Hermes install (no 'hermes' CLI on PATH, no ~/.hermes, and \$HERMES_HOME unset)."
+  if [ "$MODE" = "bundled" ] && [ -z "$HERMES_PLUGINS_DIR" ]; then
+    echo "ERROR: --bundled mode needs to know your Hermes plugins directory up front — can't proceed without it." >&2
+    echo "        Either install/PATH the 'hermes' CLI, set \$HERMES_HOME, or use --symlink instead (which can defer this)." >&2
+    exit 1
+  fi
   warn "Docker services will still be provisioned below. You'll need to wire Hermes up manually afterwards — see the instructions printed at the end."
+fi
+
+PLUGIN_TARGET_DIR="${HERMES_PLUGINS_DIR:+$HERMES_PLUGINS_DIR/$PLUGIN_NAME}"
+
+# ---------------------------------------------------------------------------
+# Mode-specific setup: where Docker configs live, and whether the plugin
+# directory is a symlink back to this repo or a real, self-contained copy.
+# ---------------------------------------------------------------------------
+if [ "$MODE" = "bundled" ]; then
+  DOCKER_HOME="$PLUGIN_TARGET_DIR/docker"
+
+  log "Copying plugin code into $PLUGIN_TARGET_DIR (bundled mode — no symlink)"
+  if [ -L "$PLUGIN_TARGET_DIR" ]; then
+    log "Removing existing symlink at $PLUGIN_TARGET_DIR (switching from --symlink to --bundled)"
+    rm "$PLUGIN_TARGET_DIR"
+  fi
+  mkdir -p "$PLUGIN_TARGET_DIR"
+  cp -a "$REPO_DIR"/. "$PLUGIN_TARGET_DIR"/
+  rm -rf "$PLUGIN_TARGET_DIR/.git"
+  find "$PLUGIN_TARGET_DIR" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+else
+  DOCKER_HOME="${DOCKER_HOME:-$HOME/docker}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -80,6 +154,7 @@ else
   log "Crawl4AI .env already exists — leaving secrets untouched"
 fi
 
+warn_if_container_elsewhere "hermes-crawl4ai" "$DOCKER_HOME/crawl4ai"
 log "Starting Crawl4AI"
 ( cd "$DOCKER_HOME/crawl4ai" && docker compose up -d )
 
@@ -107,6 +182,7 @@ else
   log "SearXNG core-config/settings.yml already exists — leaving your custom config untouched"
 fi
 
+warn_if_container_elsewhere "searxng-core" "$DOCKER_HOME/searxng"
 log "Starting SearXNG"
 ( cd "$DOCKER_HOME/searxng" && docker compose up -d )
 
@@ -166,17 +242,21 @@ fi
 #    hermes CLI isn't available or no plugins directory could be found.
 # ---------------------------------------------------------------------------
 if [ "$HERMES_CLI_AVAILABLE" -eq 1 ] && [ -n "$HERMES_PLUGINS_DIR" ]; then
-  PLUGIN_LINK="$HERMES_PLUGINS_DIR/$PLUGIN_NAME"
   mkdir -p "$HERMES_PLUGINS_DIR"
-  if [ -L "$PLUGIN_LINK" ]; then
-    ln -sfn "$REPO_DIR" "$PLUGIN_LINK"
-    log "Updated existing symlink $PLUGIN_LINK -> $REPO_DIR"
-  elif [ -e "$PLUGIN_LINK" ]; then
-    warn "$PLUGIN_LINK already exists and is not a symlink — leaving it untouched. Remove it manually if you want install.sh to manage it."
-  else
-    ln -s "$REPO_DIR" "$PLUGIN_LINK"
-    log "Symlinked $PLUGIN_LINK -> $REPO_DIR"
+
+  if [ "$MODE" = "symlink" ]; then
+    if [ -L "$PLUGIN_TARGET_DIR" ]; then
+      ln -sfn "$REPO_DIR" "$PLUGIN_TARGET_DIR"
+      log "Updated existing symlink $PLUGIN_TARGET_DIR -> $REPO_DIR"
+    elif [ -e "$PLUGIN_TARGET_DIR" ]; then
+      warn "$PLUGIN_TARGET_DIR already exists and is not a symlink — leaving it untouched. Remove it manually if you want install.sh to manage it (or re-run with --bundled to adopt it as a self-contained copy)."
+    else
+      ln -s "$REPO_DIR" "$PLUGIN_TARGET_DIR"
+      log "Symlinked $PLUGIN_TARGET_DIR -> $REPO_DIR"
+    fi
   fi
+  # --bundled mode already copied the code into $PLUGIN_TARGET_DIR earlier,
+  # before Docker provisioning — nothing left to do here for that part.
 
   log "Enabling plugin in Hermes"
   hermes plugins enable "$PLUGIN_NAME" || warn "hermes plugins enable failed — check 'hermes plugins list' manually"
