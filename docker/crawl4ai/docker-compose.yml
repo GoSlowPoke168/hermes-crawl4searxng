@@ -1,0 +1,13 @@
+services:
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    container_name: hermes-crawl4ai
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:11235:11235"
+
+    shm_size: 1gb
+
+    env_file:
+      - .env
