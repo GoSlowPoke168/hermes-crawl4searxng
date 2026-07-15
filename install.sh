@@ -142,9 +142,9 @@ hermes config set web.extract_backend crawl4ai || warn "hermes config set failed
 # 6. Retire the old evey-research plugin (config-level disable only — never
 #    touches ~/.hermes/plugins/hermes-plugins/, which holds 30+ other plugins)
 # ---------------------------------------------------------------------------
-if hermes plugins list 2>/dev/null | grep -q "hermes-plugins/evey-research"; then
-  log "Disabling superseded plugin hermes-plugins/evey-research (config-level only)"
-  hermes plugins disable "hermes-plugins/evey-research" || warn "Could not disable evey-research automatically — run 'hermes plugins disable hermes-plugins/evey-research' manually"
+if hermes plugins list 2>/dev/null | grep -q "evey-research"; then
+  log "Disabling superseded plugin evey-research (config-level only — does not touch its files)"
+  hermes plugins disable "evey-research" || warn "Could not disable evey-research automatically — run 'hermes plugins disable evey-research' manually"
 fi
 
 log "Restarting Hermes gateway"
