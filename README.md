@@ -19,7 +19,7 @@ cd hermes-crawl4searxng
 ./install.sh
 ```
 
-That's it — `install.sh` stands up Crawl4AI + SearXNG in Docker, generates secrets on first run, and wires the plugin into Hermes. Re-running it any time (e.g. after `git pull`) is safe: it never touches existing secrets or your custom SearXNG config.
+`install.sh` starts up Crawl4AI + SearXNG in Docker, generates secrets on first run, and wires the plugin into Hermes. Re-running it any time (e.g. after `git pull`) is safe: it never touches existing secrets or your custom SearXNG config.
 
 By default it installs in **`--bundled`** mode. There's also a **`--symlink`** mode for active development on this repo:
 
