@@ -264,20 +264,6 @@ if [ "$HERMES_CLI_AVAILABLE" -eq 1 ] && [ -n "$HERMES_PLUGINS_DIR" ]; then
   log "Setting web.extract_backend = crawl4ai"
   hermes config set web.extract_backend crawl4ai || warn "hermes config set failed — set it manually in your Hermes config.yaml"
 
-  # -------------------------------------------------------------------------
-  # 6. Retire the old evey-research plugin (config-level disable only — never
-  #    touches the hermes-plugins/ directory, which holds 30+ other plugins)
-  # -------------------------------------------------------------------------
-  # Captured to a variable rather than piped straight into `grep -q` — grep -q
-  # exits on first match and can SIGPIPE `hermes` before it finishes writing,
-  # which combined with `pipefail` would make this `if` see a false negative
-  # even when the match was real.
-  plugins_output="$(hermes plugins list 2>/dev/null || true)"
-  if printf '%s' "$plugins_output" | grep -q "evey-research"; then
-    log "Disabling superseded plugin evey-research (config-level only — does not touch its files)"
-    hermes plugins disable "evey-research" || warn "Could not disable evey-research automatically — run 'hermes plugins disable evey-research' manually"
-  fi
-
   log "Restarting Hermes gateway"
   hermes gateway restart || warn "Could not restart the gateway automatically — run 'hermes gateway restart' yourself"
 
@@ -289,7 +275,6 @@ else
       ln -s "$REPO_DIR" "<your-hermes-home>/plugins/$PLUGIN_NAME"
       hermes plugins enable $PLUGIN_NAME
       hermes config set web.extract_backend crawl4ai
-      hermes plugins disable evey-research   # if you had the old plugin installed
       hermes gateway restart
 EOF
 fi

@@ -78,7 +78,6 @@ This handles the `plugin.yaml`/env-var prompts, but **does not** provision Docke
 2. Deploys SearXNG — seeds a minimal `settings.yml` with a generated secret key on first run only; **never touches an existing `settings.yml`**, so your own customizations are always preserved.
 3. Syncs `SEARXNG_URL` / `CRAWL4AI_URL` / `CRAWL4AI_API_TOKEN` into your Hermes `.env` (located via `hermes config env-path`, not assumed to be `~/.hermes`).
 4. Symlinks (or, in `--bundled` mode, copies) the plugin into your Hermes plugins directory (located via `hermes config path`), enables it, sets `web.extract_backend: crawl4ai`, and restarts the gateway.
-5. If found, disables (does not delete) a superseded `evey-research`-style plugin at `hermes-plugins/evey-research`.
 
 If neither the `hermes` CLI nor `~/.hermes` can be found, Docker services are still provisioned and the script prints the exact values/commands to wire Hermes up manually.
 
