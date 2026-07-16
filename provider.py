@@ -67,13 +67,16 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
     def supports_extract(self) -> bool:
         return True
 
-    def extract(self, urls: List[str], **kwargs: Any) -> Dict[str, Any]:
+    def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
         """Fetch clean markdown for each URL via Crawl4AI's ``/md`` endpoint."""
         import httpx
 
         base_url = _env_value("CRAWL4AI_URL").rstrip("/")
         if not base_url:
-            return {"success": False, "error": "CRAWL4AI_URL is not set"}
+            return [
+                {"url": url, "content": "", "error": "CRAWL4AI_URL is not set"}
+                for url in urls
+            ]
 
         token = _env_value("CRAWL4AI_API_TOKEN")
         headers = {"Content-Type": "application/json"}
@@ -133,7 +136,7 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
                 "metadata": {},
             })
 
-        return {"success": True, "data": results}
+        return results
 
     def get_setup_schema(self) -> Dict[str, Any]:
         return {
