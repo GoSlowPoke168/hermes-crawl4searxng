@@ -17,7 +17,7 @@ Wires everything into Hermes and provisions both backing services, in one of two
 
 | | `--bundled` (default) | `--symlink` |
 |---|---|---|
-| Docker configs live at | `<hermes-plugins-dir>/hermes-crawl4searxng/docker/` | `~/docker/{crawl4ai,searxng}` |
+| Docker configs live at | `.hermes/plugins/hermes-crawl4searxng/docker/` | `~/docker/{crawl4ai,searxng}` |
 | Plugin dir is | a real, self-contained copy of this repo | a symlink back to this repo |
 | `git pull` here takes effect | after re-running `install.sh` (re-copies code, never touches secrets) | immediately (same files) |
 | Good for | a single self-contained directory with nothing living outside it | active development on this repo |
@@ -33,8 +33,8 @@ If neither the `hermes` CLI nor `~/.hermes` can be found, Docker services are st
 It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compose-file changes without touching secrets or your custom config.
 
 ```bash
-git clone <this-repo-url> ~/Projects/hermes-crawl4searxng
-cd ~/Projects/hermes-crawl4searxng
+git clone https://github.com/GoSlowPoke168/hermes-crawl4searxng.git
+cd ./hermes-crawl4searxng
 ./install.sh              # or: ./install.sh --symlink
 ```
 
@@ -45,7 +45,7 @@ cd ~/Projects/hermes-crawl4searxng
 The repo root doubles as the plugin directory, so it also works with Hermes' own installer:
 
 ```bash
-hermes plugins install <owner>/hermes-crawl4searxng
+hermes plugins install GoSlowPoke168/hermes-crawl4searxng
 ```
 
 This handles the `plugin.yaml`/env-var prompts, but **does not** provision Docker — run `install.sh` (from a clone, or from `~/.hermes/plugins/hermes-crawl4searxng/install.sh` after installing) separately for that.
