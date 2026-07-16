@@ -154,7 +154,7 @@ else
   log "Crawl4AI .env already exists — leaving secrets untouched"
 fi
 
-warn_if_container_elsewhere "hermes-crawl4ai" "$DOCKER_HOME/crawl4ai"
+warn_if_container_elsewhere "crawl4ai" "$DOCKER_HOME/crawl4ai"
 log "Starting Crawl4AI"
 ( cd "$DOCKER_HOME/crawl4ai" && docker compose up -d )
 
@@ -191,7 +191,7 @@ log "Starting SearXNG"
 # ---------------------------------------------------------------------------
 log "Waiting for services to become healthy..."
 for i in $(seq 1 30); do
-  c4_status="$(docker inspect --format '{{.State.Health.Status}}' hermes-crawl4ai 2>/dev/null || echo "unknown")"
+  c4_status="$(docker inspect --format '{{.State.Health.Status}}' crawl4ai 2>/dev/null || echo "unknown")"
   sx_status="$(docker inspect --format '{{.State.Status}}' searxng-core 2>/dev/null || echo "unknown")"
   if [ "$c4_status" = "healthy" ] && [ "$sx_status" = "running" ]; then
     break

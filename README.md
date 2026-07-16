@@ -38,7 +38,7 @@ cd ~/Projects/hermes-crawl4searxng
 ./install.sh              # or: ./install.sh --bundled
 ```
 
-> **Switching modes on the same machine**: both modes' Docker Compose files use the same fixed container names (`hermes-crawl4ai`, `searxng-core`, `searxng-valkey`), since Docker containers are identified globally by name, not by which directory their compose file lives in. Running `install.sh` in the *other* mode on a host that already has containers running will re-point those same containers (and regenerate their secrets) to the new location rather than creating an independent second stack — `install.sh` warns before doing this. If you want a clean switch, run `uninstall.sh` for the old mode first.
+> **Switching modes on the same machine**: both modes' Docker Compose files use the same fixed container names (`crawl4ai`, `searxng-core`, `searxng-valkey`), since Docker containers are identified globally by name, not by which directory their compose file lives in. Running `install.sh` in the *other* mode on a host that already has containers running will re-point those same containers (and regenerate their secrets) to the new location rather than creating an independent second stack — `install.sh` warns before doing this. If you want a clean switch, run `uninstall.sh` for the old mode first.
 
 ### Installing via `hermes plugins install` instead
 
@@ -76,7 +76,7 @@ Auto-detects which mode you installed with — no flag needed.
 ## Troubleshooting
 
 - **Plugin not showing up**: `hermes plugins list | grep hermes-crawl4searxng`, then check `~/.hermes/logs/errors.log` for `Failed to load plugin`.
-- **web_extract errors**: confirm `docker ps` shows `hermes-crawl4ai` healthy, and that the token in `~/docker/crawl4ai/.env` matches `~/.hermes/.env`.
+- **web_extract errors**: confirm `docker ps` shows `crawl4ai` healthy, and that the token in `~/docker/crawl4ai/.env` matches `~/.hermes/.env`.
 - **web_search errors**: confirm `curl http://127.0.0.1:8080/search?q=test&format=json` returns results — if not, this is Hermes' bundled SearXNG provider, not this plugin.
 
 ## License
