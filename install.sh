@@ -5,27 +5,27 @@
 # existing SearXNG core-config/settings.yml — those hold secrets/customizations.
 #
 # Two install modes (pick one — see --help):
-#   --symlink   (default) Docker services live under ~/docker/{crawl4ai,searxng}.
-#               The plugin is symlinked into Hermes' plugins dir, pointing back
+#   --bundled   (default) No symlink. The plugin code AND the Docker configs
+#               are copied into <hermes-plugins-dir>/hermes-crawl4searxng/ —
+#               a single self-contained directory with nothing living outside
+#               it. Re-run install.sh (from this repo) after `git pull` to
+#               sync code changes into the bundled copy.
+#   --symlink   Docker services live under ~/docker/{crawl4ai,searxng}. The
+#               plugin is symlinked into Hermes' plugins dir, pointing back
 #               at this repo — `git pull` here takes effect immediately.
-#   --bundled   No symlink. The plugin code AND the Docker configs are copied
-#               into <hermes-plugins-dir>/hermes-crawl4searxng/ — a single
-#               self-contained directory with nothing living outside it.
-#               Re-run install.sh (from this repo) after `git pull` to sync
-#               code changes into the bundled copy.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME="hermes-crawl4searxng"
-MODE="symlink"
+MODE="bundled"
 
 usage() {
   cat <<EOF
-Usage: $0 [--symlink|--bundled] [--help]
+Usage: $0 [--bundled|--symlink] [--help]
 
-  --symlink   (default) ~/docker/{crawl4ai,searxng} + symlinked plugin
-  --bundled   everything self-contained inside the plugin's own directory,
-              no symlink
+  --bundled   (default) everything self-contained inside the plugin's own
+              directory, no symlink
+  --symlink   ~/docker/{crawl4ai,searxng} + symlinked plugin
 
 Env overrides: HERMES_HOME, DOCKER_HOME (symlink mode only)
 EOF

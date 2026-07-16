@@ -15,12 +15,12 @@ Also bundles:
 
 Wires everything into Hermes and provisions both backing services, in one of two modes:
 
-| | `--symlink` (default) | `--bundled` |
+| | `--bundled` (default) | `--symlink` |
 |---|---|---|
-| Docker configs live at | `~/docker/{crawl4ai,searxng}` | `<hermes-plugins-dir>/hermes-crawl4searxng/docker/` |
-| Plugin dir is | a symlink back to this repo | a real, self-contained copy of it |
-| `git pull` here takes effect | immediately (same files) | after re-running `install.sh --bundled` (re-copies code, never touches secrets) |
-| Good for | active development on this repo | a single self-contained directory with nothing living outside it |
+| Docker configs live at | `<hermes-plugins-dir>/hermes-crawl4searxng/docker/` | `~/docker/{crawl4ai,searxng}` |
+| Plugin dir is | a real, self-contained copy of this repo | a symlink back to this repo |
+| `git pull` here takes effect | after re-running `install.sh` (re-copies code, never touches secrets) | immediately (same files) |
+| Good for | a single self-contained directory with nothing living outside it | active development on this repo |
 
 1. Deploys Crawl4AI — generates `CRAWL4AI_API_TOKEN`/`SECRET_KEY` via `openssl rand -hex 32` on first run only.
 2. Deploys SearXNG — seeds a minimal `settings.yml` with a generated secret key on first run only; **never touches an existing `settings.yml`**, so your own customizations are always preserved.
@@ -35,7 +35,7 @@ It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compos
 ```bash
 git clone <this-repo-url> ~/Projects/hermes-crawl4searxng
 cd ~/Projects/hermes-crawl4searxng
-./install.sh              # or: ./install.sh --bundled
+./install.sh              # or: ./install.sh --symlink
 ```
 
 > **Switching modes on the same machine**: both modes' Docker Compose files use the same fixed container names (`crawl4ai`, `searxng-core`, `searxng-valkey`), since Docker containers are identified globally by name, not by which directory their compose file lives in. Running `install.sh` in the *other* mode on a host that already has containers running will re-point those same containers (and regenerate their secrets) to the new location rather than creating an independent second stack — `install.sh` warns before doing this. If you want a clean switch, run `uninstall.sh` for the old mode first.
@@ -71,12 +71,12 @@ Auto-detects which mode you installed with — no flag needed.
 |---|---|---|
 | `SEARXNG_URL` | `~/.hermes/.env` | Tells Hermes' bundled SearXNG provider where to search |
 | `CRAWL4AI_URL` | `~/.hermes/.env` | Tells this plugin's provider where to extract from |
-| `CRAWL4AI_API_TOKEN` | `~/.hermes/.env` + `~/docker/crawl4ai/.env` | Bearer token — must match on both sides (install.sh keeps them in sync) |
+| `CRAWL4AI_API_TOKEN` | `~/.hermes/.env` + `<docker configs>/crawl4ai/.env` (`~/docker/crawl4ai/.env` in `--symlink` mode, `<plugins-dir>/hermes-crawl4searxng/docker/crawl4ai/.env` in `--bundled` mode) | Bearer token — must match on both sides (install.sh keeps them in sync) |
 
 ## Troubleshooting
 
 - **Plugin not showing up**: `hermes plugins list | grep hermes-crawl4searxng`, then check `~/.hermes/logs/errors.log` for `Failed to load plugin`.
-- **web_extract errors**: confirm `docker ps` shows `crawl4ai` healthy, and that the token in `~/docker/crawl4ai/.env` matches `~/.hermes/.env`.
+- **web_extract errors**: confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (see Configuration reference above for the path) matches `~/.hermes/.env`.
 - **web_search errors**: confirm `curl http://127.0.0.1:8080/search?q=test&format=json` returns results — if not, this is Hermes' bundled SearXNG provider, not this plugin.
 
 ## License
