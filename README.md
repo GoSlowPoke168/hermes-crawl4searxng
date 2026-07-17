@@ -8,8 +8,8 @@ A [Hermes Agent](https://github.com/NousResearch/hermes-agent) web-search-provid
 Unlike a plugin that invents its own custom tool names, this registers a proper `WebSearchProvider` backend via `ctx.register_web_search_provider(...)`, so it plugs directly into the `web_search`/`web_extract` tools every model already knows about — no naming collisions with Hermes' built-in `web` toolset.
 
 Also bundles:
-- `save_finding` — a small tool that writes a cited research note to `~/.hermes/knowledge/`.
-- `deep-research` skill — a short workflow guide (search → extract → cite → save).
+- **`save_finding` tool** — writes a cited research note to `~/.hermes/knowledge/<topic-slug>.md`, given a `topic`, `content` (markdown), and optional `sources` (URLs, appended as a `## Sources` list).
+- **`deep-research` skill** — a workflow the model follows for research requests: `web_search` the topic → `web_extract` the 2-4 most relevant results → synthesize an answer grounded in the extracted content, citing sources → optionally call `save_finding` if asked to persist it. Defined in `skills/deep-research/SKILL.md`.
 
 ## Install
 
