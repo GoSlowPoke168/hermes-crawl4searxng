@@ -1,10 +1,12 @@
 name: hermes-crawl4searxng
 version: 1.0.0
-description: "Crawl4AI web-extract backend for Hermes — pairs with the built-in SearXNG search provider for a complete, self-hosted web_search + web_extract stack."
+description: "Crawl4AI web-extract backend for Hermes — pairs with the built-in SearXNG search provider for a complete, self-hosted web_search + web_extract stack. Also bundles a save_finding tool and a deep-research skill."
 author: Jeremy Hou
 kind: backend
 provides_web_providers:
   - crawl4ai
+provides_tools:
+  - save_finding
 requires_env:
   - name: CRAWL4AI_URL
     description: "Base URL of your Crawl4AI instance"
