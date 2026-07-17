@@ -11,6 +11,8 @@ Also bundles:
 - **`save_finding` tool** — writes a cited research note to `~/.hermes/knowledge/<topic-slug>.md`, given a `topic`, `content` (markdown), and optional `sources` (URLs, appended as a `## Sources` list).
 - **`deep-research` skill** — a workflow the model follows for research requests: `web_search` the topic → `web_extract` the 2-4 most relevant results → synthesize an answer grounded in the extracted content, citing sources → optionally call `save_finding` if asked to persist it. Defined in `skills/deep-research/SKILL.md`.
 
+> Note: As of 7/17/26, the upstream Docker image for Crawl4AI is currently bloated with massive .core dumps and other random stuff, causing the current image to be a whopping 10GB 💀.
+
 ## Install
 
 ```bash
