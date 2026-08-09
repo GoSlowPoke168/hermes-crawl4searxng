@@ -1,15 +1,16 @@
 # hermes-crawl4searxng
 
-A [Hermes Agent](https://github.com/NousResearch/hermes-agent) web-search-provider plugin that gives the agent's native `web_search` / `web_extract` tools a fully self-hosted backend:
+A [Hermes Agent](https://github.com/NousResearch/hermes-agent) plugin that gives the agent's native `web_search` / `web_extract` tools a fully self-hosted backend:
 
-- **Search** → [SearXNG](https://docs.searxng.org/) (via Hermes' own bundled SearXNG provider — nothing to write here, it just needs `SEARXNG_URL` set).
-- **Extract** → [Crawl4AI](https://github.com/unclecode/crawl4ai) (this plugin's contribution — no bundled Hermes provider wraps Crawl4AI).
+- **Search** → [SearXNG](https://docs.searxng.org/) — via Hermes' own bundled provider; nothing to write here, it just needs `SEARXNG_URL` set.
+- **Extract** → [Crawl4AI](https://github.com/unclecode/crawl4ai) — this plugin's contribution; no bundled Hermes provider wraps Crawl4AI.
 
-Unlike a plugin that invents its own custom tool names, this registers a proper `WebSearchProvider` backend via `ctx.register_web_search_provider(...)`, so it plugs directly into the `web_search`/`web_extract` tools every model already knows about — no naming collisions with Hermes' built-in `web` toolset.
+It registers a real `WebSearchProvider` via `ctx.register_web_search_provider(...)`, so it plugs straight into the tools every model already knows — no custom tool names, no collisions with Hermes' built-in `web` toolset.
 
 Also bundles:
-- **`save_finding` tool** — writes a cited research note to `~/.hermes/knowledge/<topic-slug>.md`, given a `topic`, `content` (markdown), and optional `sources` (URLs, appended as a `## Sources` list).
-- **`deep-research` skill** — a workflow the model follows for research requests: `web_search` the topic → `web_extract` the 2-4 most relevant results → synthesize an answer grounded in the extracted content, citing sources → optionally call `save_finding` if asked to persist it. Defined in `skills/deep-research/SKILL.md`.
+
+- **`save_finding` tool** — writes a cited research note to `~/.hermes/knowledge/<topic-slug>.md` from a `topic`, `content` (markdown), and optional `sources` (URLs, appended as a `## Sources` list).
+- **`deep-research` skill** — a search → extract → synthesize → cite → optionally save workflow. See [`skills/deep-research/SKILL.md`](skills/deep-research/SKILL.md).
 
 ## Install
 
@@ -19,69 +20,43 @@ cd hermes-crawl4searxng
 ./install.sh
 ```
 
-`install.sh` starts up Crawl4AI + SearXNG in Docker, generates secrets on first run, and wires the plugin into Hermes. Re-running it any time (e.g. after `git pull`) is safe: it never touches existing secrets or your custom SearXNG config.
+This starts Crawl4AI + SearXNG in Docker, generates secrets on first run, and wires the plugin into Hermes. It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compose-file changes, and it never touches existing secrets or your custom SearXNG config.
 
-By default it installs in **`--bundled`** mode. There's also a **`--symlink`** mode for active development on this repo:
+### Install modes
 
-```bash
-./install.sh --bundled    # default — copies this repo into Hermes' plugins dir
-./install.sh --symlink    # symlinks Hermes' plugins dir back to this repo
-```
+`--bundled` is the default; `--symlink` is for active development on this repo.
 
-### `--bundled` vs `--symlink`
+| | `--bundled` (default) | `--symlink` |
+|---|---|---|
+| Plugin dir | real copy in `~/.hermes/plugins/` | symlink → your clone |
+| Docker configs | `<plugin-dir>/docker/` | `~/docker/` |
+| Code changes apply | after re-running `install.sh` | immediately |
+| Best for | install and forget | developing this plugin |
 
-**`--bundled` (default)** — everything lives in one self-contained place inside Hermes:
+**Switching modes on the same machine:**
 
-```
-~/.hermes/plugins/hermes-crawl4searxng/    ← real copy of this repo
-├── plugin.yaml
-├── __init__.py / provider.py / skills/
-└── docker/
-    ├── crawl4ai/     ← docker-compose.yml + .env (secrets) live HERE
-    └── searxng/      ← docker-compose.yml + .env + settings.yml live HERE
-```
+- Both modes use the same fixed container names (`crawl4ai`, `searxng-core`, `searxng-valkey`) — Docker identifies containers globally by name, not by which directory their compose file lives in.
+- Re-running `install.sh` in the *other* mode re-points those same containers (and regenerates their secrets) rather than creating an independent second stack. It warns before doing this.
+- For a clean switch, run `uninstall.sh` for the old mode first.
 
-Picking up code changes from this repo requires re-running `install.sh` (it re-copies the code, but never touches secrets or `settings.yml`). Good if you just want to install and forget — nothing lives outside `~/.hermes`.
+### Installing via `hermes plugins install`
 
-**`--symlink`** — the plugin dir points back at your clone, and Docker configs live in `~/docker/` instead:
-
-```
-~/Projects/hermes-crawl4searxng/           ← your clone (the source of truth)
-├── plugin.yaml
-├── __init__.py / provider.py / skills/
-└── docker/                                ← templates only, not used live
-
-~/.hermes/plugins/hermes-crawl4searxng     ← symlink → ~/Projects/hermes-crawl4searxng
-
-~/docker/
-├── crawl4ai/     ← docker-compose.yml + .env (secrets) live HERE
-└── searxng/      ← docker-compose.yml + .env + settings.yml live HERE
-```
-
-Code changes in your clone take effect immediately (same files via the symlink) — no re-install needed. Good if you're actively developing this plugin.
-
-> **Switching modes on the same machine**: both modes' Docker Compose files use the same fixed container names (`crawl4ai`, `searxng-core`, `searxng-valkey`), since Docker containers are identified globally by name, not by which directory their compose file lives in. Running `install.sh` in the *other* mode on a host that already has containers running will re-point those same containers (and regenerate their secrets) to the new location rather than creating an independent second stack — `install.sh` warns before doing this. If you want a clean switch, run `uninstall.sh` for the old mode first.
-
-### Installing via `hermes plugins install` instead
-
-The repo root doubles as the plugin directory, so it also works with Hermes' own installer:
+The repo root doubles as the plugin directory, so Hermes' own installer works too:
 
 ```bash
 hermes plugins install GoSlowPoke168/hermes-crawl4searxng
 ```
 
-This handles the `plugin.yaml`/env-var prompts, but **does not** provision Docker — run `install.sh` (from a clone, or from `~/.hermes/plugins/hermes-crawl4searxng/install.sh` after installing) separately for that.
+This handles the `plugin.yaml` / env-var prompts, but **does not** provision Docker — run `install.sh` separately for that (from a clone, or from `~/.hermes/plugins/hermes-crawl4searxng/install.sh` after installing).
 
 ## What `install.sh` does
 
-1. Deploys Crawl4AI — generates `CRAWL4AI_API_TOKEN`/`SECRET_KEY` via `openssl rand -hex 32` on first run only.
-2. Deploys SearXNG — seeds a minimal `settings.yml` with a generated secret key on first run only; **never touches an existing `settings.yml`**, so your own customizations are always preserved.
+1. Deploys Crawl4AI — generates `CRAWL4AI_API_TOKEN` / `SECRET_KEY` via `openssl rand -hex 32`, first run only.
+2. Deploys SearXNG — seeds a minimal `settings.yml` with a generated secret key, first run only; **never touches an existing `settings.yml`**, so your customizations are always preserved.
 3. Syncs `SEARXNG_URL` / `CRAWL4AI_URL` / `CRAWL4AI_API_TOKEN` into your Hermes `.env` (located via `hermes config env-path`, not assumed to be `~/.hermes`).
-4. Symlinks (or, in `--bundled` mode, copies) the plugin into your Hermes plugins directory (located via `hermes config path`), enables it, sets `web.extract_backend: crawl4ai`, and restarts the gateway.
+4. Installs the plugin into your Hermes plugins directory (located via `hermes config path`), enables it, sets `web.extract_backend: crawl4ai`, and restarts the gateway.
 
-If neither the `hermes` CLI nor `~/.hermes` can be found, Docker services are still provisioned and the script prints the exact values/commands to wire Hermes up manually.
-
-It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compose-file changes without touching secrets or your custom config.
+If neither the `hermes` CLI nor `~/.hermes` can be found, Docker services are still provisioned and the script prints the exact values and commands to wire Hermes up manually.
 
 ## Requirements
 
@@ -94,25 +69,25 @@ It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compos
 Auto-detects which mode you installed with — no flag needed.
 
 ```bash
-./uninstall.sh          # stops containers, disables/unlinks (or in bundled mode, keeps) the plugin — keeps all data & secrets
-./uninstall.sh --purge   # also deletes Docker volumes, generated .env files, settings.yml, and (bundled mode) the plugin's own directory (asks to confirm)
+./uninstall.sh           # stops containers, disables and unlinks/removes the plugin — keeps all data & secrets
+./uninstall.sh --purge   # also deletes volumes, generated .env files, settings.yml, and (bundled mode) the plugin's own directory — asks first
 ```
 
 ## Configuration reference
 
 | Env var | Where | Purpose |
 |---|---|---|
-| `SEARXNG_URL` | `~/.hermes/.env` | Tells Hermes' bundled SearXNG provider where to search |
-| `CRAWL4AI_URL` | `~/.hermes/.env` | Tells this plugin's provider where to extract from |
-| `CRAWL4AI_API_TOKEN` | `~/.hermes/.env` + `<docker configs>/crawl4ai/.env` (`~/docker/crawl4ai/.env` in `--symlink` mode, `~/.hermes/plugins/hermes-crawl4searxng/docker/crawl4ai/.env` in `--bundled` mode) | Bearer token — must match on both sides (install.sh keeps them in sync) |
+| `SEARXNG_URL` | `~/.hermes/.env` | Where Hermes' bundled SearXNG provider searches |
+| `CRAWL4AI_URL` | `~/.hermes/.env` | Where this plugin extracts from |
+| `CRAWL4AI_API_TOKEN` | `~/.hermes/.env` + Crawl4AI `.env` | Bearer token — must match on both sides (`install.sh` keeps them in sync) |
+
+The Crawl4AI `.env` lives at `~/docker/crawl4ai/.env` in `--symlink` mode, or `~/.hermes/plugins/hermes-crawl4searxng/docker/crawl4ai/.env` in `--bundled` mode.
 
 ## Troubleshooting
 
-- **Plugin not showing up**: `hermes plugins list | grep hermes-crawl4searxng`, then check `~/.hermes/logs/errors.log` for `Failed to load plugin`.
-- **web_extract errors**: confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (see Configuration reference above for the path) matches `~/.hermes/.env`.
-- **web_search errors**: confirm `curl http://127.0.0.1:8080/search?q=test&format=json` returns results — if not, this is Hermes' bundled SearXNG provider, not this plugin.
+- **`web_extract` errors** — confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (path above) matches `~/.hermes/.env`.
+- **`web_search` errors** — confirm `curl 'http://127.0.0.1:8080/search?q=test&format=json'` returns results. If not, that's Hermes' bundled SearXNG provider, not this plugin.
 
 ## License
 
 [![GitHub License](https://img.shields.io/github/license/goslowpoke168/hermes-crawl4searxng?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zY2FsZSI+PHBhdGggZD0ibTE2IDE2IDMtOCAzIDhjLS44Ny42NS0xLjkyIDEtMyAxcy0yLjEzLS4zNS0zLTFaIi8+PHBhdGggZD0ibTIgMTYgMy04IDMgOGMtLjg3LjY1LTEuOTIgMS0zIDFzLTIuMTMtLjM1LTMtMVoiLz48cGF0aCBkPSJNNyAyMWgxMCIvPjxwYXRoIGQ9Ik0xMiAzdjE4Ii8+PHBhdGggZD0iTTMgN2gyYzIgMCA1LTEgNy0yIDIgMSA1IDIgNyAyaDIiLz48L3N2Zz4=)](https://github.com/GoSlowPoke168/hermes-crawl4searxng/blob/master/LICENSE)
-
