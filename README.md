@@ -88,6 +88,11 @@ The Crawl4AI `.env` lives at `~/docker/crawl4ai/.env` in `--symlink` mode, or `~
 - **`web_extract` errors** — confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (path above) matches `~/.hermes/.env`.
 - **`web_search` errors** — confirm `curl 'http://127.0.0.1:8080/search?q=test&format=json'` returns results. If not, that's Hermes' bundled SearXNG provider, not this plugin.
 
+## Support the Project
+If you find this plugin useful, please leave a star on GitHub or consider supporting its development!
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?logo=ko-fi&logoColor=white&style=for-the-badge)](https://ko-fi.com/jeremyhou)
+
 ## License
 
 [![GitHub License](https://img.shields.io/github/license/goslowpoke168/hermes-crawl4searxng?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zY2FsZSI+PHBhdGggZD0ibTE2IDE2IDMtOCAzIDhjLS44Ny42NS0xLjkyIDEtMyAxcy0yLjEzLS4zNS0zLTFaIi8+PHBhdGggZD0ibTIgMTYgMy04IDMgOGMtLjg3LjY1LTEuOTIgMS0zIDFzLTIuMTMtLjM1LTMtMVoiLz48cGF0aCBkPSJNNyAyMWgxMCIvPjxwYXRoIGQ9Ik0xMiAzdjE4Ii8+PHBhdGggZD0iTTMgN2gyYzIgMCA1LTEgNy0yIDIgMSA1IDIgNyAyaDIiLz48L3N2Zz4=)](https://github.com/GoSlowPoke168/hermes-crawl4searxng/blob/master/LICENSE)
