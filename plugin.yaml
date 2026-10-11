@@ -1,5 +1,7 @@
 name: hermes-crawl4searxng
-version: 1.0.0
+version: 1.1.0
+requires_hermes: ">=0.21.6"
+homepage: https://github.com/GoSlowPoke168/hermes-crawl4searxng
 description: "Crawl4AI web-extract backend for Hermes — pairs with the built-in SearXNG search provider for a complete, self-hosted web_search + web_extract stack. Also bundles a save_finding tool and a deep-research skill."
 author: Jeremy Hou
 kind: backend
@@ -7,10 +9,31 @@ provides_web_providers:
   - crawl4ai
 provides_tools:
   - save_finding
-requires_env:
+optional_env:
   - name: CRAWL4AI_URL
     description: "Base URL of your Crawl4AI instance"
     url: https://github.com/unclecode/crawl4ai
   - name: CRAWL4AI_API_TOKEN
     description: "Bearer token your Crawl4AI instance requires"
     secret: true
+  - name: SEARXNG_URL
+    description: "Optional SearXNG instance used by Hermes's built-in search provider"
+  - name: CRAWL4AI_MANAGED_API_TOKEN
+    description: "Retained managed-service bearer token, independent of an external instance's token"
+    secret: true
+config_schema:
+  crawl4ai_url:
+    type: str
+    default: ""
+    description: "Crawl4AI base URL; falls back to CRAWL4AI_URL"
+  crawl4ai_api_token:
+    type: str
+    secret: true
+    env: CRAWL4AI_API_TOKEN
+    description: "Optional bearer token, stored through Hermes's credential route"
+  save_finding_enabled:
+    type: bool
+    default: true
+  deep_research_enabled:
+    type: bool
+    default: true

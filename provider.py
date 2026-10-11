@@ -23,31 +23,23 @@ Env vars::
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List
 
 from agent.web_search_provider import WebSearchProvider
 
-logger = logging.getLogger(__name__)
-
-
 def _env_value(name: str) -> str:
-    """Return an env var via Hermes' config-aware lookup, falling back to process env."""
-    try:
-        from hermes_cli.config import get_env_value
-
-        val = get_env_value(name)
-    except Exception:
-        val = None
-    if val is None:
-        import os
-
-        val = os.getenv(name, "")
-    return (val or "").strip()
+    from agent.secret_scope import get_secret
+    return (get_secret(name) or "").strip()
 
 
 class Crawl4AIWebSearchProvider(WebSearchProvider):
     """Extract clean page content via a self-hosted Crawl4AI instance."""
+
+    def __init__(self, settings=None):
+        self.settings = settings or (lambda key, default=None: default)
+
+    def base_url(self):
+        return (self.settings("crawl4ai_url", "") or _env_value("CRAWL4AI_URL")).rstrip("/")
 
     @property
     def name(self) -> str:
@@ -59,7 +51,7 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
 
     def is_available(self) -> bool:
         """Return True when ``CRAWL4AI_URL`` is set."""
-        return bool(_env_value("CRAWL4AI_URL"))
+        return bool(self.base_url())
 
     def supports_search(self) -> bool:
         return False
@@ -71,7 +63,7 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
         """Fetch clean markdown for each URL via Crawl4AI's ``/md`` endpoint."""
         import httpx
 
-        base_url = _env_value("CRAWL4AI_URL").rstrip("/")
+        base_url = self.base_url()
         if not base_url:
             return [
                 {"url": url, "content": "", "error": "CRAWL4AI_URL is not set"}
@@ -94,8 +86,9 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
                 )
                 resp.raise_for_status()
                 data = resp.json()
+                if not isinstance(data, dict) or not isinstance(data.get("markdown"), str):
+                    raise ValueError("Invalid markdown response")
             except httpx.HTTPStatusError as exc:
-                logger.warning("Crawl4AI HTTP error for %s: %s", url, exc)
                 results.append({
                     "url": url,
                     "content": "",
@@ -103,15 +96,13 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
                 })
                 continue
             except httpx.RequestError as exc:
-                logger.warning("Crawl4AI request error for %s: %s", url, exc)
                 results.append({
                     "url": url,
                     "content": "",
-                    "error": f"Could not reach Crawl4AI at {base_url}: {exc}",
+                    "error": "Could not reach Crawl4AI",
                 })
                 continue
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Crawl4AI response parse error for %s: %s", url, exc)
+            except (ValueError, TypeError):
                 results.append({
                     "url": url,
                     "content": "",
@@ -123,7 +114,7 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
                 results.append({
                     "url": url,
                     "content": "",
-                    "error": data.get("error") or "Crawl4AI reported failure",
+                    "error": "Crawl4AI reported failure",
                 })
                 continue
 
@@ -151,6 +142,7 @@ class Crawl4AIWebSearchProvider(WebSearchProvider):
                 },
                 {
                     "key": "CRAWL4AI_API_TOKEN",
+                    "secret": True,
                     "prompt": "Crawl4AI API bearer token",
                     "url": "https://github.com/unclecode/crawl4ai",
                 },

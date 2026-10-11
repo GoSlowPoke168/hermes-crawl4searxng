@@ -14,6 +14,7 @@ import json
 import os
 import re
 import time
+import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
@@ -23,7 +24,8 @@ SAVE_FINDING_SCHEMA = {
     "name": "save_finding",
     "description": (
         "Save a research finding to the knowledge library with proper citation. "
-        "Findings are saved as markdown files in ~/.hermes/knowledge/."
+        "Findings are saved in the active Hermes home's knowledge directory. "
+        "Saving the same topic replaces its previous note."
     ),
     "parameters": {
         "type": "object",
@@ -52,12 +54,17 @@ def save_handler(args: Dict[str, Any], **kwargs: Any) -> str:
         topic = args.get("topic", "untitled")
         content = args.get("content", "")
         sources = args.get("sources", [])
+        if not isinstance(topic, str) or not isinstance(content, str):
+            raise ValueError("topic and content must be strings")
+        if not isinstance(sources, list) or any(not isinstance(source, str) for source in sources):
+            raise ValueError("sources must be a list of URLs")
 
         safe_name = re.sub(r"[^\w\-]", "-", topic.lower()).strip("-")
         if not safe_name:
             safe_name = "untitled"
 
-        knowledge_dir = os.path.expanduser("~/.hermes/knowledge")
+        from hermes_constants import get_hermes_home
+        knowledge_dir = get_hermes_home() / "knowledge"
         os.makedirs(knowledge_dir, exist_ok=True)
 
         filepath = os.path.join(knowledge_dir, f"{safe_name}.md")
@@ -71,8 +78,15 @@ def save_handler(args: Dict[str, Any], **kwargs: Any) -> str:
             for s in sources:
                 doc += f"- {s}\n"
 
-        with open(filepath, "w") as f:
-            f.write(doc)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=knowledge_dir, delete=False) as f:
+                temporary = f.name
+                f.write(doc)
+            os.replace(temporary, filepath)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
 
         return json.dumps({
             "status": "saved",
@@ -85,16 +99,19 @@ def save_handler(args: Dict[str, Any], **kwargs: Any) -> str:
 
 
 def register(ctx) -> None:
-    ctx.register_web_search_provider(Crawl4AIWebSearchProvider())
+    from .cli import register_cli
+    ctx.register_web_search_provider(Crawl4AIWebSearchProvider(ctx.get_config))
+    register_cli(ctx)
 
-    ctx.register_tool(
-        name="save_finding",
-        toolset="hermes_crawl4searxng",
-        schema=SAVE_FINDING_SCHEMA,
-        handler=save_handler,
-    )
+    if ctx.get_config("save_finding_enabled", True):
+        ctx.register_tool(
+            name="save_finding",
+            toolset="hermes_crawl4searxng",
+            schema=SAVE_FINDING_SCHEMA,
+            handler=save_handler,
+        )
 
-    try:
+    if ctx.get_config("deep_research_enabled", True):
         skill_md = Path(__file__).parent / "skills" / "deep-research" / "SKILL.md"
         if skill_md.exists():
             ctx.register_skill(
@@ -102,5 +119,3 @@ def register(ctx) -> None:
                 skill_md,
                 description="Structured web research workflow: search, extract, cite, save",
             )
-    except AttributeError:
-        pass
