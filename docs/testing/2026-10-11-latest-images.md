@@ -15,8 +15,16 @@ Updates run only after setup confirmation; no background updater is added.
   and stop retaining volumes. Only test projects and their test volumes were removed.
 - **Hermes plugin validation passed** on a clean tracked-file copy, including
   registration, capability checks, safe security scan, and no core override.
+- **Native pinned installation passed** against the public 1.1.1 commit.
+  Research-note hashes, other plugin settings, and web settings were unchanged.
+- **The separately authorized existing Crawl4AI update passed:** 0.9.2 → 0.9.4,
+  with a protected crawl-data backup restored into the replacement container.
+  Docker health, authenticated extraction, and actual Hermes search/extraction
+  passed afterward. Compose configuration/token and SearXNG containers were unchanged.
+  No crash-dump candidates were found in application data, `/app`, or `/tmp`.
 - Shell syntax and `git diff --check` passed.
 
 Other operating systems/architectures remain untested live. These results cover
 images available during this run; future upstream `latest` images are not verified.
-The user's existing default-port containers were not updated by these tests.
+The isolated deployment tests only changed their own test projects; the existing
+Crawl4AI update was a separate user-approved operation.
