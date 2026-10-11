@@ -21,8 +21,6 @@ hermes plugins install GoSlowPoke168/hermes-crawl4searxng --enable
 hermes crawl4searxng setup
 ```
 
-The install command uses the default branch; the new wizard requires the setup changes to be merged there.
-
 The terminal wizard can deploy Docker, connect your own services, or keep your current search provider. Search and extraction are configured independently; both optional extras default to enabled.
 
 Installation and setup are separate. Restart existing Hermes sessions afterward.
