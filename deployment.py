@@ -1,10 +1,12 @@
 """Explicitly owned Compose deployments; credentials/config survive stop and reruns."""
 import hashlib
 import os
+import re
 import secrets
 import shutil
 import socket
 import subprocess
+import tempfile
 from pathlib import Path
 
 PORTS = {'crawl4ai': 11235, 'searxng': 8080}
@@ -57,6 +59,26 @@ def write_new(path, content):
         stream.write(content)
 
 
+def refresh_default_images(compose_file):
+    # Migrate only our former default pins; retain administrator-selected images.
+    images = {
+        'unclecode/crawl4ai@sha256:9021b3cb5c6f12570bbcd5395638495e0a06969b3148e377b953d174af2ebc9b': 'unclecode/crawl4ai:latest',
+        'docker.io/searxng/searxng@sha256:85492ba800a861e3e8ff6014c430e81369fe6ca766a9990595f616d1ce95b272': 'docker.io/searxng/searxng:latest',
+    }
+    original = compose_file.read_text()
+    updated = original
+    for old, latest in images.items():
+        updated = re.sub(r'(?m)^([ \t]*image:[ \t]*)' + re.escape(old) + r'([ \t]*(?:#.*)?)$', lambda match: match[1] + latest + match[2], updated)
+    if updated != original:
+        fd, temporary = tempfile.mkstemp(dir=compose_file.parent)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                stream.write(updated)
+            os.replace(temporary, compose_file)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
+
 def provision_service(service, directory, project, *, token=''):
     if service not in PORTS:
         raise ValueError('Unknown managed service')
@@ -76,7 +98,9 @@ def provision_service(service, directory, project, *, token=''):
         template = (TEMPLATES / service / 'core-config/settings.yml.template').read_text()
         write_new(config / 'settings.yml', template.replace('__GENERATED_SECRET_KEY__', secrets.token_hex(32)))
         write_new(directory / '.env', 'SEARXNG_HOST=127.0.0.1\nSEARXNG_PORT=8080\n')
-    compose(directory, project, 'up', '-d')
+    refresh_default_images(compose_file)
+    compose(directory, project, 'pull')
+    compose(directory, project, 'up', '-d', '--pull', 'never')
 
 
 def stop_service(directory, project):

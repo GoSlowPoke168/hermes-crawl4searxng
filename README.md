@@ -23,6 +23,8 @@ hermes crawl4searxng setup
 
 The terminal wizard can deploy Docker, connect your own services, or keep your current search provider. Search and extraction are configured independently; both optional extras default to enabled.
 
+Managed setup pulls the latest Crawl4AI and SearXNG images on each run; there are no background updates. Custom image pins are preserved.
+
 Installation and setup are separate. Restart existing Hermes sessions afterward.
 No purchased Crawl4AI API key is needed; Docker setup generates a local token.
 

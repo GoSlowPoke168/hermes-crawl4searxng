@@ -1,5 +1,5 @@
 name: hermes-crawl4searxng
-version: 1.1.0
+version: 1.1.1
 requires_hermes: ">=0.21.6"
 homepage: https://github.com/GoSlowPoke168/hermes-crawl4searxng
 description: "Crawl4AI web-extract backend for Hermes — pairs with the built-in SearXNG search provider for a complete, self-hosted web_search + web_extract stack. Also bundles a save_finding tool and a deep-research skill."

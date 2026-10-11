@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import time
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,8 +14,9 @@ import test_plugin
 
 deployment = importlib.import_module('tested_plugin.deployment')
 cli = importlib.import_module('tested_plugin.cli')
-root = test_plugin.ROOT / '.test-artifacts/docker'
-root.mkdir(parents=True, exist_ok=True, mode=0o700)
+artifacts = test_plugin.ROOT / '.test-artifacts'
+artifacts.mkdir(parents=True, exist_ok=True, mode=0o700)
+root = Path(tempfile.mkdtemp(prefix='docker-', dir=artifacts))
 templates = root / 'templates'
 shutil.copytree(test_plugin.ROOT / 'docker', templates, dirs_exist_ok=True)
 for service, old, new in [('crawl4ai', '11235:11235', '31235:11235'), ('searxng', '8080:8080', '38080:8080')]:
@@ -48,9 +50,18 @@ try:
             raise AssertionError('Invalid token was accepted')
         for directory, project in created:
             before = (directory / '.env').read_bytes()
+            compose_file = directory / 'docker-compose.yml'
+            latest, old = (
+                ('unclecode/crawl4ai:latest', 'unclecode/crawl4ai@sha256:9021b3cb5c6f12570bbcd5395638495e0a06969b3148e377b953d174af2ebc9b')
+                if directory.name == 'crawl4ai' else
+                ('docker.io/searxng/searxng:latest', 'docker.io/searxng/searxng@sha256:85492ba800a861e3e8ff6014c430e81369fe6ca766a9990595f616d1ce95b272')
+            )
+            compose_file.write_text(compose_file.read_text().replace(latest, old))
             deployment.provision_service(directory.name, directory, project, token=token if directory.name == 'crawl4ai' else '')
             assert (directory / '.env').read_bytes() == before
-        print('Invalid-token rejection and repeat deployment passed', flush=True)
+            assert latest in compose_file.read_text()
+            assert old not in compose_file.read_text()
+        print('Invalid-token rejection, old-pin migration, and repeat deployment passed', flush=True)
 finally:
     for directory, project in reversed(created):
         deployment.stop_service(directory, project)

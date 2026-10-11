@@ -137,6 +137,8 @@ def run_setup(ctx):
         ]
         for service in selected:
             summary.append(f'Deploy {service}: {managed_record(ctx, service)["directory"]}; loopback port {PORTS[service]}')
+        if selected:
+            summary.append('Managed setup pulls the latest Crawl4AI/SearXNG images and may recreate their containers; custom image pins are retained.')
         summary.append('Existing managed files/data are retained. Restart running Hermes sessions after setup.')
         summary = '\n'.join(summary)
         from rich.console import Console

@@ -3,7 +3,7 @@
 
 services:
   core:
-    image: docker.io/searxng/searxng@sha256:85492ba800a861e3e8ff6014c430e81369fe6ca766a9990595f616d1ce95b272
+    image: docker.io/searxng/searxng:latest
     restart: always
     ports:
       - "127.0.0.1:8080:8080"
