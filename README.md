@@ -87,7 +87,6 @@ to your crawler. Managed setup starts background containers. No telemetry is add
 | Linux x86-64, macOS, WSL2; Hermes in Docker | Experimental; untested live |
 | Native Windows | Unverified |
 
-[Test details](docs/testing/2026-10-10-verification.md) · [Wizard checks](docs/testing/2026-10-11-wizard-ui.md)
 ```bash
 hermes --run-module unittest discover -s tests -v
 bash -n install.sh uninstall.sh
