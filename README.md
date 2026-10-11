@@ -172,6 +172,17 @@ hermes --run-module unittest discover -s tests -v
 bash -n install.sh uninstall.sh
 hermes plugins validate . --install-deps
 ```
+## Troubleshooting
+
+- **`web_extract` errors** — confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (path above) matches `~/.hermes/.env`.
+- **`web_search` errors** — confirm `curl 'http://127.0.0.1:8080/search?q=test&format=json'` returns results. If not, that's Hermes' bundled SearXNG provider, not this plugin.
+
+## Support the Project
+If you find this plugin useful, please leave a star on GitHub or consider supporting its development!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/T5T725W4FX)
+
+## License
 
 See [verification evidence](docs/testing/2026-10-10-verification.md),
 [native wizard checks](docs/testing/2026-10-11-wizard-ui.md),
