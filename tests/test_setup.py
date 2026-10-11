@@ -72,6 +72,36 @@ class DeploymentTests(unittest.TestCase):
 
 
 class WizardTests(unittest.TestCase):
+    def setUp(self):
+        import curses
+        fallback = patch('curses.wrapper', side_effect=curses.error('test terminal'))
+        fallback.start()
+        self.addCleanup(fallback.stop)
+
+    def test_choices_use_native_radio_selector(self):
+        mod = self.module()
+        with patch('hermes_cli.curses_ui.curses_radiolist', return_value=1) as selector:
+            self.assertEqual(mod.choice('Crawl4AI', ['Docker', 'Existing'], 2), 2)
+        self.assertEqual(selector.call_args.args, ('Crawl4AI', ['Docker', 'Existing']))
+        self.assertEqual(selector.call_args.kwargs['selected'], 1)
+        self.assertEqual(selector.call_args.kwargs['cancel_returns'], -1)
+
+    def test_escape_cancels_without_mutations(self):
+        mod = self.module()
+        ctx = context(Path('/unused'))
+        with patch('sys.stdin.isatty', return_value=True), patch('hermes_cli.curses_ui.curses_radiolist', return_value=-1), patch.object(mod, '_env_value', return_value=''), patch.object(mod, 'provision_service') as deploy, patch.object(mod, 'save_provider_env_credential') as save, redirect_stdout(io.StringIO()):
+            self.assertEqual(mod.run_setup(ctx), 1)
+        deploy.assert_not_called()
+        save.assert_not_called()
+        ctx.set_config.assert_not_called()
+
+    def test_confirmation_defaults_to_no_and_carries_summary(self):
+        mod = self.module()
+        with patch('hermes_cli.curses_ui.curses_radiolist', return_value=1) as selector:
+            self.assertFalse(mod.yes('Apply changes?', False, description='Reviewed endpoints; token hidden'))
+        self.assertEqual(selector.call_args.kwargs['selected'], 1)
+        self.assertIn('Reviewed endpoints', selector.call_args.kwargs['description'])
+
     def module(self):
         return importlib.import_module('tested_plugin.cli')
 
@@ -83,7 +113,7 @@ class WizardTests(unittest.TestCase):
                     ctx = context(Path(temp))
                     answers = [crawl] + (['https://crawl.example'] if crawl == '2' else [])
                     answers += [search] + (['https://search.example'] if search == '2' else [])
-                    answers += ['', '', 'y']
+                    answers += ['', '', '1']
                     output = io.StringIO()
                     with patch('sys.stdin.isatty', return_value=True), patch('builtins.input', side_effect=answers), patch.object(mod, 'getpass', return_value='fixture-secret'), patch.object(mod, '_env_value', return_value=''), patch.object(mod, 'preflight_service'), patch.object(mod, 'provision_service') as provision, patch.object(mod, 'check_services'), patch.object(mod, 'save_provider_env_credential'), patch.object(mod, 'require_writable'), patch.object(mod, 'set_routing') as routing, redirect_stdout(output):
                         self.assertEqual(mod.run_setup(ctx), 0)
@@ -96,7 +126,7 @@ class WizardTests(unittest.TestCase):
 
     def test_cancel_and_no_terminal_have_no_changes(self):
         mod = self.module()
-        for tty, answers, expected in [(False, [], 1), (True, [EOFError()], 1), (True, ['', '', 'n', 'n', 'n'], 0)]:
+        for tty, answers, expected in [(False, [], 1), (True, [EOFError()], 1), (True, ['', '', '2', '2', '2'], 0)]:
             ctx = context(Path('/unused'))
             with patch('sys.stdin.isatty', return_value=tty), patch('builtins.input', side_effect=answers), patch.object(mod, '_env_value', return_value=''), patch.object(mod, 'provision_service') as provision, patch.object(mod, 'save_provider_env_credential') as save, redirect_stdout(io.StringIO()):
                 self.assertEqual(mod.run_setup(ctx), expected)
@@ -107,7 +137,7 @@ class WizardTests(unittest.TestCase):
     def test_failed_probe_preserves_routes_and_settings(self):
         mod = self.module()
         ctx = context(Path('/unused'))
-        with patch('sys.stdin.isatty', return_value=True), patch('builtins.input', side_effect=['2', 'https://crawl.example', '3', '', '', 'y']), patch.object(mod, 'getpass', return_value='fixture-secret'), patch.object(mod, '_env_value', return_value=''), patch.object(mod, 'require_writable'), patch.object(mod, 'check_services', side_effect=RuntimeError('Service check failed')), patch.object(mod, 'set_routing') as routing, patch.object(mod, 'save_provider_env_credential') as save, redirect_stdout(io.StringIO()):
+        with patch('sys.stdin.isatty', return_value=True), patch('builtins.input', side_effect=['2', 'https://crawl.example', '3', '', '', '1']), patch.object(mod, 'getpass', return_value='fixture-secret'), patch.object(mod, '_env_value', return_value=''), patch.object(mod, 'require_writable'), patch.object(mod, 'check_services', side_effect=RuntimeError('Service check failed')), patch.object(mod, 'set_routing') as routing, patch.object(mod, 'save_provider_env_credential') as save, redirect_stdout(io.StringIO()):
             self.assertEqual(mod.run_setup(ctx), 1)
         routing.assert_not_called()
         save.assert_not_called()
@@ -150,7 +180,7 @@ class WizardTests(unittest.TestCase):
             def probe(url, token, search):
                 if token != required[url]:
                     raise RuntimeError('Service check returned HTTP 401')
-            sequences = [['1', '3', '', '', 'y'], ['2', 'https://external', '3', '', '', 'y'], ['1', '3', '', '', 'y']]
+            sequences = [['1', '3', '', '', '1'], ['2', 'https://external', '3', '', '', '1'], ['1', '3', '', '', '1']]
             with patch('sys.stdin.isatty', return_value=True), patch.object(mod, '_env_value', side_effect=lambda key: credentials.get(key, '')), patch.object(mod, 'getpass', return_value='external-token'), patch.object(mod, 'preflight_service'), patch.object(mod, 'provision_service', side_effect=provision), patch.object(mod, 'check_services', side_effect=probe), patch.object(mod, 'save_provider_env_credential', side_effect=save), patch.object(mod, 'require_writable'), patch.object(mod, 'set_routing'), patch.object(mod.time, 'sleep'), redirect_stdout(io.StringIO()):
                 for answers in sequences:
                     with patch('builtins.input', side_effect=answers):
@@ -167,7 +197,7 @@ class WizardTests(unittest.TestCase):
             def provision(service, directory, project, token=''):
                 directory.mkdir(parents=True)
                 raise RuntimeError('Docker Compose failed')
-            with patch('sys.stdin.isatty', return_value=True), patch('builtins.input', side_effect=['1', '3', '', '', 'y']), patch.object(mod, '_env_value', side_effect=lambda key: credentials.get(key, '')), patch.object(mod, 'preflight_service'), patch.object(mod, 'provision_service', side_effect=provision), patch.object(mod, 'save_provider_env_credential', side_effect=save), patch.object(mod, 'require_writable'), patch.object(mod, 'set_routing') as routing, redirect_stdout(io.StringIO()):
+            with patch('sys.stdin.isatty', return_value=True), patch('builtins.input', side_effect=['1', '3', '', '', '1']), patch.object(mod, '_env_value', side_effect=lambda key: credentials.get(key, '')), patch.object(mod, 'preflight_service'), patch.object(mod, 'provision_service', side_effect=provision), patch.object(mod, 'save_provider_env_credential', side_effect=save), patch.object(mod, 'require_writable'), patch.object(mod, 'set_routing') as routing, redirect_stdout(io.StringIO()):
                 self.assertEqual(mod.run_setup(ctx), 1)
             self.assertEqual(credentials['CRAWL4AI_API_TOKEN'], 'external-token')
             self.assertIn('crawl4ai', ctx.state.get('managed_services'))

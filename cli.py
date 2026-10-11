@@ -22,15 +22,13 @@ def validate_url(value):
     return value.rstrip('/')
 
 
-def choice(label, options, default):
-    print(label)
-    for index, option in enumerate(options, 1):
-        print(f'  {index}. {option}')
-    while True:
-        value = input(f'Choice [{default}]: ').strip() or str(default)
-        if value in [str(i) for i in range(1, len(options) + 1)]:
-            return int(value)
-        print('Choose one of the numbers above.')
+def choice(label, options, default, description=None):
+    from hermes_cli.curses_ui import curses_radiolist
+    selected = curses_radiolist(label, options, selected=default - 1,
+                                cancel_returns=-1, description=description)
+    if selected < 0:
+        raise KeyboardInterrupt
+    return selected + 1
 
 
 def ask_url(label, default):
@@ -46,11 +44,8 @@ def ask_url(label, default):
             print('Use a valid HTTP(S) URL without embedded credentials.')
 
 
-def yes(label, default=True):
-    while True:
-        answer = input(f'{label} [{"Y/n" if default else "y/N"}]: ').strip().lower()
-        if answer in ('', 'y', 'yes', 'n', 'no'):
-            return default if not answer else answer in ('y', 'yes')
+def yes(label, default=True, description=None):
+    return choice(label, ['Yes', 'No'], 1 if default else 2, description) == 1
 
 
 def managed_record(ctx, service):
@@ -113,7 +108,7 @@ def run_setup(ctx):
         records = ownership(ctx)
         crawl_default = ctx.get_config('crawl4ai_url', '') or _env_value('CRAWL4AI_URL')
         search_default = _env_value('SEARXNG_URL')
-        crawl = choice('Crawl4AI', ['Deploy Docker', 'Use existing instance'], 1 if 'crawl4ai' in records or not crawl_default else 2)
+        crawl = choice('1/4 · Crawl4AI extraction', ['Deploy Docker', 'Use existing instance'], 1 if 'crawl4ai' in records or not crawl_default else 2, description='Hermes · Crawl4AI + SearXNG setup\nChoose a local managed container or connect your own crawler.')
         crawl_url = 'http://127.0.0.1:11235' if crawl == 1 else ask_url('Crawl4AI', crawl_default)
         old_token = _env_value('CRAWL4AI_API_TOKEN')
         if crawl == 1:
@@ -127,18 +122,29 @@ def run_setup(ctx):
             token = getpass('Bearer token (blank keeps current; - clears it): ').strip() or old_token
         if token == '-':
             token = ''
-        search = choice('Search', ['Deploy SearXNG Docker', 'Use existing SearXNG', 'Keep current search provider'], 1 if 'searxng' in records or not search_default else 2)
+        search = choice('2/4 · Web search', ['Deploy SearXNG Docker', 'Use existing SearXNG', 'Keep current search provider'], 1 if 'searxng' in records or not search_default else 2, description='Choose a search service. Keeping current search leaves its settings unchanged.')
         search_url = 'http://127.0.0.1:8080' if search == 1 else ask_url('SearXNG', search_default) if search == 2 else None
-        save = yes('Enable save_finding?', ctx.get_config('save_finding_enabled', True))
-        research = yes('Enable deep-research?', ctx.get_config('deep_research_enabled', True))
+        save = yes('3/4 · Enable research notes?', ctx.get_config('save_finding_enabled', True), description='save_finding saves cited notes only when requested. The same topic replaces its previous note.')
+        research = yes('3/4 · Enable deep-research?', ctx.get_config('deep_research_enabled', True), description='Adds the source-verification workflow. Load the skill explicitly for research sessions.')
         selected = (['crawl4ai'] if crawl == 1 else []) + (['searxng'] if search == 1 else [])
-        print(f'Extraction: {crawl_url}; bearer token: {"configured (hidden)" if token else "none"}')
-        print(f'Search: {search_url or "keep current provider"}; save_finding={save}; deep-research={research}')
-        print('Set web.extract_backend=crawl4ai' + (' and web.search_backend=searxng' if search_url else ''))
+        summary = [
+            f'Crawl4AI: {crawl_url} ({"managed Docker" if crawl == 1 else "existing instance"})',
+            f'Bearer token: {"configured (hidden)" if token else "none"}',
+            f'Search: {search_url or "keep current provider"}' + (' (managed Docker)' if search == 1 else ''),
+            f'Research notes: {"enabled" if save else "disabled"}',
+            f'Deep research: {"enabled" if research else "disabled"}',
+            'Route extraction to Crawl4AI' + (' and search to SearXNG.' if search_url else '.'),
+        ]
         for service in selected:
-            print(f'Deploy {service}: {managed_record(ctx, service)["directory"]}; loopback port {PORTS[service]}')
-        print('Existing managed files/data are retained. Restart running Hermes sessions after setup.')
-        if not yes('Apply these changes?', False):
+            summary.append(f'Deploy {service}: {managed_record(ctx, service)["directory"]}; loopback port {PORTS[service]}')
+        summary.append('Existing managed files/data are retained. Restart running Hermes sessions after setup.')
+        summary = '\n'.join(summary)
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.text import Text
+        console = Console()
+        console.print(Panel(Text(summary), title='4/4 · Review setup', border_style='cyan'))
+        if not yes('Apply these changes?', False, description=summary):
             print('Cancelled; no changes applied.')
             return 0
         require_writable(search_url is not None, crawl == 1)
@@ -156,6 +162,7 @@ def run_setup(ctx):
                 if Path(record['directory']).exists():
                     records[service] = record
                     ctx.state.set('managed_services', records)
+        console.print('Verifying extraction and search…' if search_url else 'Verifying extraction…', style='cyan')
         for attempt in range(10 if selected else 1):
             try:
                 check_services(crawl_url, token, search_url)
@@ -172,7 +179,7 @@ def run_setup(ctx):
         ctx.set_config('save_finding_enabled', save)
         ctx.set_config('deep_research_enabled', research)
         set_routing(search_url is not None)
-        print('Setup verified. Restart running Hermes sessions to load the settings.')
+        console.print('✓ Setup verified. Restart running Hermes sessions to load the settings.', style='green')
         return 0
     except (EOFError, KeyboardInterrupt):
         print('\nSetup cancelled.')

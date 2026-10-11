@@ -4,6 +4,28 @@ Crawl4AI extraction for Hermes's native `web_extract`, paired with Hermes's
 built-in SearXNG `web_search`. Use your own services or let a terminal wizard
 deploy Docker. Includes an optional cited-note tool and deep-research skill.
 
+## Support and test coverage
+
+Status describes verified coverage, not a compatibility guarantee. Experimental
+setups may work but still need a complete live test; unverified platforms have
+no confirmed support.
+
+| Platform or setup | Status | Coverage |
+| --- | --- | --- |
+| Linux ARM64, existing Crawl4AI + SearXNG | Tested | Native install, terminal setup, web tools, and notes tested live. |
+| Linux ARM64, managed Docker | Experimental | Containers, authentication, reruns, and retention tested live on alternate ports; full wizard/default-port deployment pending. |
+| Mixed managed/existing services; keep current search | Experimental | All six service combinations pass automated fixtures; these wizard paths need live tests. |
+| Linux x86-64 / AMD64 | Experimental | Not run on this architecture. |
+| macOS, Apple Silicon or Intel | Experimental | Docker Desktop and terminal behavior untested. |
+| WSL2, x86-64 | Experimental | Docker integration and networking untested. |
+| Native Windows, x86-64 or ARM64 | Unverified | Paths, permissions, terminal, and Docker behavior untested. |
+| Hermes running inside Docker | Experimental | Connections to existing services and container networking untested. |
+
+Research citation quality depends on the model. The configured mini-model
+evaluation showed inconsistent citation formatting despite explicit guidance.
+See the [verification record](docs/testing/2026-10-10-verification.md) and
+[research evaluation](docs/testing/deep-research-evaluation.md) for details.
+
 ## Install and configure
 
 Requires Hermes **0.21.6 or newer**. Tested on Linux ARM64; managed deployment
@@ -18,6 +40,10 @@ The owner/repository shorthand works before catalog listing. Once admitted to
 the official catalog, install with `hermes plugins install hermes-crawl4searxng
 --enable` to get the reviewed SHA. Installation enables the plugin; **run setup
 separately**. Installing or loading it never prompts or starts containers.
+
+The wizard uses Hermes's native dot selectors: **↑/↓** to move, **Enter** to
+select, and **Esc** or **Ctrl+C** to cancel. Terminals without curses use Hermes's
+numbered fallback. A review screen defaults to **No** before applying changes.
 
 The wizard offers these choices independently:
 
@@ -148,6 +174,7 @@ hermes plugins validate . --install-deps
 ```
 
 See [verification evidence](docs/testing/2026-10-10-verification.md),
+[native wizard checks](docs/testing/2026-10-11-wizard-ui.md),
 [research evaluation](docs/testing/deep-research-evaluation.md), and the
 [catalog submission draft](docs/catalog-submission.md). Publication is a separate
 reviewed step; local validation does not make the repository a catalog entry.
