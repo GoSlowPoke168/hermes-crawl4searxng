@@ -6,6 +6,11 @@ use_default_settings: true
 server:
   secret_key: "__GENERATED_SECRET_KEY__"
   image_proxy: true
+  bind_address: 0.0.0.0
+  port: 8080
+
+valkey:
+  url: valkey://valkey:6379/0
 
 search:
   formats:

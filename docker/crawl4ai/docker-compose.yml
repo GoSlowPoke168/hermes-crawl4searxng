@@ -1,7 +1,6 @@
 services:
   crawl4ai:
-    image: unclecode/crawl4ai:latest
-    container_name: crawl4ai
+    image: unclecode/crawl4ai@sha256:9021b3cb5c6f12570bbcd5395638495e0a06969b3148e377b953d174af2ebc9b
     restart: unless-stopped
 
     ports:

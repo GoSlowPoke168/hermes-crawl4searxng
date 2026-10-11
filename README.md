@@ -1,88 +1,177 @@
 # hermes-crawl4searxng
 
-A [Hermes Agent](https://github.com/NousResearch/hermes-agent) plugin that gives the agent's native `web_search` / `web_extract` tools a fully self-hosted backend:
+Crawl4AI extraction for Hermes's native `web_extract`, paired with Hermes's
+built-in SearXNG `web_search`. Use your own services or let a terminal wizard
+deploy Docker. Includes an optional cited-note tool and deep-research skill.
 
-- **Search** → [SearXNG](https://docs.searxng.org/) — via Hermes' own bundled provider; nothing to write here, it just needs `SEARXNG_URL` set.
-- **Extract** → [Crawl4AI](https://github.com/unclecode/crawl4ai) — this plugin's contribution; no bundled Hermes provider wraps Crawl4AI.
+## Support and test coverage
 
-It registers a real `WebSearchProvider` via `ctx.register_web_search_provider(...)`, so it plugs straight into the tools every model already knows — no custom tool names, no collisions with Hermes' built-in `web` toolset.
+Status describes verified coverage, not a compatibility guarantee. Experimental
+setups may work but still need a complete live test; unverified platforms have
+no confirmed support.
 
-Also bundles:
+| Platform or setup | Status | Coverage |
+| --- | --- | --- |
+| Linux ARM64, existing Crawl4AI + SearXNG | Tested | Native install, terminal setup, web tools, and notes tested live. |
+| Linux ARM64, managed Docker | Experimental | Containers, authentication, reruns, and retention tested live on alternate ports; full wizard/default-port deployment pending. |
+| Mixed managed/existing services; keep current search | Experimental | All six service combinations pass automated fixtures; these wizard paths need live tests. |
+| Linux x86-64 / AMD64 | Experimental | Not run on this architecture. |
+| macOS, Apple Silicon or Intel | Experimental | Docker Desktop and terminal behavior untested. |
+| WSL2, x86-64 | Experimental | Docker integration and networking untested. |
+| Native Windows, x86-64 or ARM64 | Unverified | Paths, permissions, terminal, and Docker behavior untested. |
+| Hermes running inside Docker | Experimental | Connections to existing services and container networking untested. |
 
-- **`save_finding` tool** — writes a cited research note to `~/.hermes/knowledge/<topic-slug>.md` from a `topic`, `content` (markdown), and optional `sources` (URLs, appended as a `## Sources` list).
-- **`deep-research` skill** — a search → extract → synthesize → cite → optionally save workflow. See [`skills/deep-research/SKILL.md`](skills/deep-research/SKILL.md).
+Research citation quality depends on the model. The configured mini-model
+evaluation showed inconsistent citation formatting despite explicit guidance.
+See the [verification record](docs/testing/2026-10-10-verification.md) and
+[research evaluation](docs/testing/deep-research-evaluation.md) for details.
 
-## Install
+## Install and configure
 
-```bash
-git clone https://github.com/GoSlowPoke168/hermes-crawl4searxng.git
-cd hermes-crawl4searxng
-./install.sh
-```
-
-This starts Crawl4AI + SearXNG in Docker, generates secrets on first run, and wires the plugin into Hermes. It's idempotent — re-run it any time (e.g. after `git pull`) to pick up compose-file changes, and it never touches existing secrets or your custom SearXNG config.
-
-### Install modes
-
-`--bundled` is the default; `--symlink` is for active development on this repo.
-
-| | `--bundled` (default) | `--symlink` |
-|---|---|---|
-| Plugin dir | real copy in `~/.hermes/plugins/` | symlink → your clone |
-| Docker configs | `<plugin-dir>/docker/` | `~/docker/` |
-| Code changes apply | after re-running `install.sh` | immediately |
-| Best for | install and forget | developing this plugin |
-
-**Switching modes on the same machine:**
-
-- Both modes use the same fixed container names (`crawl4ai`, `searxng-core`, `searxng-valkey`) — Docker identifies containers globally by name, not by which directory their compose file lives in.
-- Re-running `install.sh` in the *other* mode re-points those same containers (and regenerates their secrets) rather than creating an independent second stack. It warns before doing this.
-- For a clean switch, run `uninstall.sh` for the old mode first.
-
-### Installing via `hermes plugins install`
-
-The repo root doubles as the plugin directory, so Hermes' own installer works too:
+Requires Hermes **0.21.6 or newer**. Tested on Linux ARM64; managed deployment
+requires a host-installed Hermes CLI, Docker daemon access, and Docker Compose.
 
 ```bash
-hermes plugins install GoSlowPoke168/hermes-crawl4searxng
+hermes plugins install GoSlowPoke168/hermes-crawl4searxng --enable
+hermes crawl4searxng setup
 ```
 
-This handles the `plugin.yaml` / env-var prompts, but **does not** provision Docker — run `install.sh` separately for that (from a clone, or from `~/.hermes/plugins/hermes-crawl4searxng/install.sh` after installing).
+The owner/repository shorthand works before catalog listing. Once admitted to
+the official catalog, install with `hermes plugins install hermes-crawl4searxng
+--enable` to get the reviewed SHA. Installation enables the plugin; **run setup
+separately**. Installing or loading it never prompts or starts containers.
 
-## What `install.sh` does
+The wizard uses Hermes's native dot selectors: **↑/↓** to move, **Enter** to
+select, and **Esc** or **Ctrl+C** to cancel. Terminals without curses use Hermes's
+numbered fallback. A review screen defaults to **No** before applying changes.
 
-1. Deploys Crawl4AI — generates `CRAWL4AI_API_TOKEN` / `SECRET_KEY` via `openssl rand -hex 32`, first run only.
-2. Deploys SearXNG — seeds a minimal `settings.yml` with a generated secret key, first run only; **never touches an existing `settings.yml`**, so your customizations are always preserved.
-3. Syncs `SEARXNG_URL` / `CRAWL4AI_URL` / `CRAWL4AI_API_TOKEN` into your Hermes `.env` (located via `hermes config env-path`, not assumed to be `~/.hermes`).
-4. Installs the plugin into your Hermes plugins directory (located via `hermes config path`), enables it, sets `web.extract_backend: crawl4ai`, and restarts the gateway.
+The wizard offers these choices independently:
 
-If neither the `hermes` CLI nor `~/.hermes` can be found, Docker services are still provisioned and the script prints the exact values and commands to wire Hermes up manually.
+| Service | Initial default | Other choices |
+| --- | --- | --- |
+| Crawl4AI | Deploy Docker | Existing HTTP(S) endpoint and hidden bearer token |
+| Search | Deploy SearXNG Docker | Existing SearXNG endpoint; keep current search |
+| save_finding | Enabled | Disable |
+| deep-research | Enabled | Disable |
 
-## Requirements
+It reuses existing configured endpoints on later runs, shows the proposed URLs,
+deployment directories, and routing changes, then asks for confirmation. It checks
+authenticated extraction and SearXNG JSON search before changing working routes.
+Restart existing Hermes sessions after setup. Interrupted or failed deployment
+retains its files and ownership record; inspect it, rerun setup, or stop it.
+Configuration writes are sequential: an error during persistence can leave some
+settings applied, and setup reports that possibility.
 
-- Docker + Docker Compose v2
-- `openssl` (secret generation)
-- Hermes Agent CLI on `PATH`
+For existing Crawl4AI, a blank token keeps the configured value; enter `-` for an
+instance that needs no token. There is **no purchased Crawl4AI key requirement**.
+Current self-hosted Docker images require local bearer authentication to expose
+their server outside the container. Managed setup generates a local token when
+none is configured. Optional LLM extraction/cloud services have separate keys;
+this plugin's `/md` extraction does not require those services. See the
+[official self-hosting guide](https://docs.crawl4ai.com/core/self-hosting/).
 
-## Uninstalling
+Managed services bind `127.0.0.1:11235` and `127.0.0.1:8080`, use pinned immutable
+images, and have a separate Compose project per profile/deployment. An occupied
+port causes an actionable error; existing containers are never adopted silently.
+The wizard requires a terminal and refuses unattended invocation without changes.
+When Hermes itself runs in Docker, select existing service URLs reachable from
+its container (such as your Docker network's service names).
 
-Auto-detects which mode you installed with — no flag needed.
+Hermes profiles configured with `plugins.isolation: host` skip plugin CLI
+registrations: the provider/tool can load, but this terminal command needs the
+normal `in_process` mode. The plugin does not change that policy automatically.
+
+## Existing configuration and optional features
+
+Existing `CRAWL4AI_URL`, `CRAWL4AI_API_TOKEN`, and `SEARXNG_URL` remain supported.
+The token is read through Hermes's profile-scoped secret API. Secrets are saved
+through Hermes's credential route, never written into plugin settings YAML.
+
+```yaml
+plugins:
+  entries:
+    hermes-crawl4searxng:
+      enabled: true
+      settings:
+        crawl4ai_url: http://127.0.0.1:11235
+        save_finding_enabled: true
+        deep_research_enabled: true
+web:
+  extract_backend: crawl4ai
+  search_backend: searxng
+```
+
+The URL setting takes precedence over the legacy environment value. Keeping the
+current search provider in setup leaves its endpoint/routing untouched. Without
+an extraction endpoint, the plugin still loads and setup remains available.
+
+Load the research skill explicitly:
 
 ```bash
-./uninstall.sh           # stops containers, disables and unlinks/removes the plugin — keeps all data & secrets
-./uninstall.sh --purge   # also deletes volumes, generated .env files, settings.yml, and (bundled mode) the plugin's own directory — asks first
+hermes --skills hermes-crawl4searxng:deep-research -z 'Research my question with verified inline citations'
 ```
 
-## Configuration reference
+It directs Hermes to read sources, prioritize primary evidence, distinguish
+versions/dates, investigate conflicts, recognize copied reporting, reject page
+instructions, and disclose unresolved gaps. Skill registration does not promise
+automatic activation. `save_finding` is used only when requested and available.
+Notes are UTF-8 Markdown in the active Hermes home's `knowledge/` directory.
+**Saving the same normalized topic replaces its prior note.** Replacement is
+atomic, so a failed write leaves the prior note intact.
 
-| Env var | Where | Purpose |
-|---|---|---|
-| `SEARXNG_URL` | `~/.hermes/.env` | Where Hermes' bundled SearXNG provider searches |
-| `CRAWL4AI_URL` | `~/.hermes/.env` | Where this plugin extracts from |
-| `CRAWL4AI_API_TOKEN` | `~/.hermes/.env` + Crawl4AI `.env` | Bearer token — must match on both sides (`install.sh` keeps them in sync) |
+## Stop, remove, and migrate
 
-The Crawl4AI `.env` lives at `~/docker/crawl4ai/.env` in `--symlink` mode, or `~/.hermes/plugins/hermes-crawl4searxng/docker/crawl4ai/.env` in `--bundled` mode.
+```bash
+hermes crawl4searxng stop
+hermes plugins remove hermes-crawl4searxng
+```
 
+Stop affects only projects recorded by this plugin in the active profile. It
+retains volumes, generated settings, and credentials. Native plugin removal does
+not stop services or delete research notes. There is no purge command.
+
+Generated deployment files live under `ctx.state.data_dir/deployment/`, within
+the active Hermes home's `plugin-data/` namespace, outside installed code. The
+wizard never overwrites existing generated secrets or custom SearXNG settings.
+An existing managed Compose file also remains unchanged on rerun; adopting a
+new image digest for that deployment is an explicit administrator edit.
+
+If you used the old scripts or fixed container names (`crawl4ai`, `searxng-core`,
+`searxng-valkey`), keep those containers/files and select their endpoints as
+**existing instances**. Remove obsolete bundled/code-copy installations through
+their original lifecycle after confirming the native plugin works; do not leave
+duplicate providers enabled. `install.sh` now forwards to setup; legacy
+`--bundled`, `--standalone`, and `--symlink` options fail with migration guidance.
+`uninstall.sh` prints native stop/remove instructions and refuses `--purge`.
+
+## Behavior and disclosures
+
+- Extraction sends the requested page URL and bearer token to your configured
+  Crawl4AI server; that server fetches/renders the page. Search queries go to
+  SearXNG and its configured search engines. Setup probes `https://example.com`
+  and searches for `Hermes Agent` to verify both services.
+- Confirmed managed setup runs bounded `docker`/`docker compose` commands, pulls
+  the pinned images if missing, and starts background containers with restart
+  policies. It uses no shell interpolation of entered values.
+- Hermes stores profile credentials through its credential lifecycle API.
+  Managed Crawl4AI additionally needs its own mode-0600 deployment `.env` file;
+  this is a generated service file, not a read of Hermes's credential store.
+  Its token is also retained through Hermes as `CRAWL4AI_MANAGED_API_TOKEN`, so
+  switching to an external instance and back preserves authentication. If that
+  credential is lost, setup asks for the existing managed token rather than
+  replacing the service's secret file.
+- Research notes and service data survive native updates/removal. Setup/stop
+  do not touch externally managed containers. No telemetry is added.
+- Plugin code updates use Hermes's native install/update lifecycle; there is no
+  code copier or self-updater. Catalog updates require a reviewed SHA bump.
+
+## Verification and catalog submission
+
+```bash
+hermes --run-module unittest discover -s tests -v
+bash -n install.sh uninstall.sh
+hermes plugins validate . --install-deps
+```
 ## Troubleshooting
 
 - **`web_extract` errors** — confirm `docker ps` shows `crawl4ai` healthy, and that the token in its `.env` (path above) matches `~/.hermes/.env`.
@@ -95,4 +184,8 @@ If you find this plugin useful, please leave a star on GitHub or consider suppor
 
 ## License
 
-[![GitHub License](https://img.shields.io/github/license/goslowpoke168/hermes-crawl4searxng?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zY2FsZSI+PHBhdGggZD0ibTE2IDE2IDMtOCAzIDhjLS44Ny42NS0xLjkyIDEtMyAxcy0yLjEzLS4zNS0zLTFaIi8+PHBhdGggZD0ibTIgMTYgMy04IDMgOGMtLjg3LjY1LTEuOTIgMS0zIDFzLTIuMTMtLjM1LTMtMVoiLz48cGF0aCBkPSJNNyAyMWgxMCIvPjxwYXRoIGQ9Ik0xMiAzdjE4Ii8+PHBhdGggZD0iTTMgN2gyYzIgMCA1LTEgNy0yIDIgMSA1IDIgNyAyaDIiLz48L3N2Zz4=)](https://github.com/GoSlowPoke168/hermes-crawl4searxng/blob/master/LICENSE)
+See [verification evidence](docs/testing/2026-10-10-verification.md),
+[native wizard checks](docs/testing/2026-10-11-wizard-ui.md),
+[research evaluation](docs/testing/deep-research-evaluation.md), and the
+[catalog submission draft](docs/catalog-submission.md). Publication is a separate
+reviewed step; local validation does not make the repository a catalog entry.
